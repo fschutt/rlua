@@ -371,11 +371,11 @@ impl<'lua> AnyUserData<'lua> {
                 );
 
                 if ffi::lua_rawequal(lua.state, -1, -2) == 0 {
-                    ffi::lua_pop(lua.state, 3);
+                    lua_pop!(lua.state, 3);
                     None
                 } else {
                     let res = func(&*get_userdata::<RefCell<T>>(lua.state, -3));
-                    ffi::lua_pop(lua.state, 3);
+                    lua_pop!(lua.state, 3);
                     Some(res)
                 }
             })

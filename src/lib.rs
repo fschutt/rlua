@@ -41,13 +41,10 @@
 #![doc(test(attr(deny(warnings))))]
 
 extern crate libc;
-#[cfg(luajit)]
-extern crate lib_jit_sys;
-#[cfg(luajit)]
-pub use lib_jit_sys as ffi;
+pub extern crate lua_jit_sys as ffi;
 
-#[cfg(builtin_lua)]
-pub mod ffi;
+#[macro_use]
+mod jit_compat_51;
 #[macro_use]
 mod util;
 mod error;

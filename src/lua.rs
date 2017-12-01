@@ -259,17 +259,17 @@ impl<'lua> Function<'lua> {
     pub fn bind<A: ToLuaMulti<'lua>>(&self, args: A) -> Result<Function<'lua>> {
         unsafe extern "C" fn bind_call_impl(state: *mut ffi::lua_State) -> c_int {
             let nargs = ffi::lua_gettop(state);
-            let nbinds = ffi::lua_tointeger(state, ffi::lua_upvalueindex(2)) as c_int;
+            let nbinds = ffi::lua_tointeger(state, lua_upvalueindex!(2)) as c_int;
             check_stack(state, nbinds + 2);
 
             ffi::lua_settop(state, nargs + nbinds + 1);
             ffi::lua_rotate(state, -(nargs + nbinds + 1), nbinds + 1);
 
-            ffi::lua_pushvalue(state, ffi::lua_upvalueindex(1));
+            ffi::lua_pushvalue(state, lua_upvalueindex!(1));
             ffi::lua_replace(state, 1);
 
             for i in 0..nbinds {
-                ffi::lua_pushvalue(state, ffi::lua_upvalueindex(i + 3));
+                ffi::lua_pushvalue(state, lua_upvalueindex!(i + 3));
                 ffi::lua_replace(state, i + 2);
             }
 
@@ -290,7 +290,7 @@ impl<'lua> Function<'lua> {
                     lua.push_value(lua.state, arg);
                 }
 
-                ffi::lua_pushcclosure(lua.state, bind_call_impl, nargs + 2);
+                lua_pushcclosure!(lua.state, bind_call_impl, nargs + 2);
 
                 Ok(Function(lua.pop_ref(lua.state)))
             })
@@ -377,11 +377,11 @@ impl<'lua> Thread<'lua> {
                 let thread_state = ffi::lua_tothread(lua.state, -1);
 
                 let status = ffi::lua_status(thread_state);
-                if status != ffi::LUA_YIELD && ffi::lua_gettop(thread_state) == 0 {
+                if status != lua_yield!() && ffi::lua_gettop(thread_state) == 0 {
                     return Err(Error::CoroutineInactive);
                 }
 
-                ffi::lua_pop(lua.state, 1);
+                lua_pop!(lua.state, 1);
 
                 let args = args.to_lua_multi(lua)?;
                 let nargs = args.len() as c_int;
@@ -416,12 +416,12 @@ impl<'lua> Thread<'lua> {
 
                 lua.push_ref(lua.state, &self.0);
                 let thread_state = ffi::lua_tothread(lua.state, -1);
-                ffi::lua_pop(lua.state, 1);
+                lua_pop!(lua.state, 1);
 
                 let status = ffi::lua_status(thread_state);
-                if status != ffi::LUA_OK && status != ffi::LUA_YIELD {
+                if status != lua_ok!() && status != lua_yield!() {
                     ThreadStatus::Error
-                } else if status == ffi::LUA_YIELD || ffi::lua_gettop(thread_state) > 0 {
+                } else if status == lua_yield!() || ffi::lua_gettop(thread_state) > 0 {
                     ThreadStatus::Resumable
                 } else {
                     ThreadStatus::Unresumable
@@ -476,7 +476,7 @@ impl Lua {
         }
 
         unsafe {
-            let state = ffi::lua_newstate(allocator, ptr::null_mut());
+            let state = lua_newstate!(allocator, ptr::null_mut());
 
             stack_guard(state, 0, || {
                 // Do not open the debug library, currently it can be used to cause unsafety.
@@ -489,7 +489,7 @@ impl Lua {
                 ffi::luaL_requiref(state, cstr!("utf8"), ffi::luaopen_utf8, 1);
                 ffi::luaL_requiref(state, cstr!("math"), ffi::luaopen_math, 1);
                 ffi::luaL_requiref(state, cstr!("package"), ffi::luaopen_package, 1);
-                ffi::lua_pop(state, 9);
+                lua_pop!(state, 9);
 
                 // Create the userdata registry table
 
@@ -500,10 +500,10 @@ impl Lua {
 
                 push_userdata::<HashMap<TypeId, c_int>>(state, HashMap::new());
 
-                ffi::lua_newtable(state);
+                lua_newtable!(state);
 
                 push_string(state, "__gc");
-                ffi::lua_pushcfunction(state, userdata_destructor::<HashMap<TypeId, c_int>>);
+                lua_pushcfunction!(state, userdata_destructor::<HashMap<TypeId, c_int>>);
                 ffi::lua_rawset(state, -3);
 
                 ffi::lua_setmetatable(state, -2);
@@ -517,10 +517,10 @@ impl Lua {
                     &FUNCTION_METATABLE_REGISTRY_KEY as *const u8 as *mut c_void,
                 );
 
-                ffi::lua_newtable(state);
+                lua_newtable!(state);
 
                 push_string(state, "__gc");
-                ffi::lua_pushcfunction(state, userdata_destructor::<RefCell<Callback>>);
+                lua_pushcfunction!(state, userdata_destructor::<RefCell<Callback>>);
                 ffi::lua_rawset(state, -3);
 
                 push_string(state, "__metatable");
@@ -532,21 +532,21 @@ impl Lua {
                 // Override pcall, xpcall, and setmetatable with versions that cannot be used to
                 // cause unsafety.
 
-                ffi::lua_rawgeti(state, ffi::LUA_REGISTRYINDEX, ffi::LUA_RIDX_GLOBALS);
+                ffi::lua_rawgeti(state, ffi::LUA_REGISTRYINDEX, lua_ridx_globals!());
 
                 push_string(state, "pcall");
-                ffi::lua_pushcfunction(state, safe_pcall);
+                lua_pushcfunction!(state, safe_pcall);
                 ffi::lua_rawset(state, -3);
 
                 push_string(state, "xpcall");
-                ffi::lua_pushcfunction(state, safe_xpcall);
+                lua_pushcfunction!(state, safe_xpcall);
                 ffi::lua_rawset(state, -3);
 
                 push_string(state, "setmetatable");
-                ffi::lua_pushcfunction(state, safe_setmetatable);
+                lua_pushcfunction!(state, safe_setmetatable);
                 ffi::lua_rawset(state, -3);
 
-                ffi::lua_pop(state, 1);
+                lua_pop!(state, 1);
             });
 
             Lua {
@@ -564,7 +564,7 @@ impl Lua {
     pub unsafe fn load_debug(&self) {
         check_stack(self.state, 1);
         ffi::luaL_requiref(self.state, cstr!("debug"), ffi::luaopen_debug, 1);
-        ffi::lua_pop(self.state, 1);
+        lua_pop!(self.state, 1);
     }
 
     /// Loads a chunk of Lua code and returns it as a function.
@@ -656,7 +656,7 @@ impl Lua {
         unsafe {
             stack_guard(self.state, 0, || {
                 check_stack(self.state, 2);
-                ffi::lua_newtable(self.state);
+                lua_newtable!(self.state);
                 Table(self.pop_ref(self.state))
             })
         }
@@ -672,7 +672,7 @@ impl Lua {
         unsafe {
             stack_err_guard(self.state, 0, || {
                 check_stack(self.state, 3);
-                ffi::lua_newtable(self.state);
+                lua_newtable!(self.state);
 
                 for (k, v) in cont {
                     self.push_value(self.state, k.to_lua(self)?);
@@ -792,7 +792,7 @@ impl Lua {
         unsafe {
             stack_guard(self.state, 0, move || {
                 check_stack(self.state, 2);
-                ffi::lua_rawgeti(self.state, ffi::LUA_REGISTRYINDEX, ffi::LUA_RIDX_GLOBALS);
+                ffi::lua_rawgeti(self.state, ffi::LUA_REGISTRYINDEX, lua_ridx_globals!());
                 Table(self.pop_ref(self.state))
             })
         }
@@ -809,8 +809,8 @@ impl Lua {
                     check_stack(self.state, 2);
                     let ty = v.type_name();
                     self.push_value(self.state, v);
-                    if ffi::lua_tostring(self.state, -1).is_null() {
-                        ffi::lua_pop(self.state, 1);
+                    if lua_tostring!(self.state, -1).is_null() {
+                        lua_pop!(self.state, 1);
                         Err(Error::FromLuaConversionError {
                             from: ty,
                             to: "String",
@@ -838,7 +838,7 @@ impl Lua {
                     self.push_value(self.state, v);
                     let mut isint = 0;
                     let i = ffi::lua_tointegerx(self.state, -1, &mut isint);
-                    ffi::lua_pop(self.state, 1);
+                    lua_pop!(self.state, 1);
                     if isint == 0 {
                         Err(Error::FromLuaConversionError {
                             from: ty,
@@ -867,7 +867,7 @@ impl Lua {
                     self.push_value(self.state, v);
                     let mut isnum = 0;
                     let n = ffi::lua_tonumberx(self.state, -1, &mut isnum);
-                    ffi::lua_pop(self.state, 1);
+                    lua_pop!(self.state, 1);
                     if isnum == 0 {
                         Err(Error::FromLuaConversionError {
                             from: ty,
@@ -914,7 +914,7 @@ impl Lua {
                     ephemeral: true,
                 };
 
-                let func = get_userdata::<RefCell<Callback>>(state, ffi::lua_upvalueindex(1));
+                let func = get_userdata::<RefCell<Callback>>(state, lua_upvalueindex!(1));
                 let mut func = if let Ok(func) = (*func).try_borrow_mut() {
                     func
                 } else {
@@ -954,10 +954,10 @@ impl Lua {
                     self.state,
                     &FUNCTION_METATABLE_REGISTRY_KEY as *const u8 as *mut c_void,
                 );
-                ffi::lua_gettable(self.state, ffi::LUA_REGISTRYINDEX);
+                lua_gettable!(self.state, ffi::LUA_REGISTRYINDEX);
                 ffi::lua_setmetatable(self.state, -2);
 
-                ffi::lua_pushcclosure(self.state, callback_call_impl, 1);
+                lua_pushcclosure!(self.state, callback_call_impl, 1);
 
                 Function(self.pop_ref(self.state))
             })
@@ -1016,40 +1016,40 @@ impl Lua {
     // Used 1 stack space, does not call checkstack
     pub(crate) unsafe fn pop_value(&self, state: *mut ffi::lua_State) -> Value {
         match ffi::lua_type(state, -1) {
-            ffi::LUA_TNIL => {
-                ffi::lua_pop(state, 1);
+            lua_tnil!() => {
+                lua_pop!(state, 1);
                 Nil
             }
 
-            ffi::LUA_TBOOLEAN => {
+            lua_tboolean!() => {
                 let b = Value::Boolean(ffi::lua_toboolean(state, -1) != 0);
-                ffi::lua_pop(state, 1);
+                lua_pop!(state, 1);
                 b
             }
 
-            ffi::LUA_TLIGHTUSERDATA => {
+            lua_tlightuserdata!() => {
                 let ud = Value::LightUserData(LightUserData(ffi::lua_touserdata(state, -1)));
-                ffi::lua_pop(state, 1);
+                lua_pop!(state, 1);
                 ud
             }
 
-            ffi::LUA_TNUMBER => if ffi::lua_isinteger(state, -1) != 0 {
+            lua_tnumber!() => if ffi::lua_isinteger(state, -1) != 0 {
                 let i = Value::Integer(ffi::lua_tointeger(state, -1));
-                ffi::lua_pop(state, 1);
+                lua_pop!(state, 1);
                 i
             } else {
                 let n = Value::Number(ffi::lua_tonumber(state, -1));
-                ffi::lua_pop(state, 1);
+                lua_pop!(state, 1);
                 n
             },
 
-            ffi::LUA_TSTRING => Value::String(String(self.pop_ref(state))),
+            lua_tstring!() => Value::String(String(self.pop_ref(state))),
 
-            ffi::LUA_TTABLE => Value::Table(Table(self.pop_ref(state))),
+            lua_ttable!() => Value::Table(Table(self.pop_ref(state))),
 
-            ffi::LUA_TFUNCTION => Value::Function(Function(self.pop_ref(state))),
+            lua_tfunction!() => Value::Function(Function(self.pop_ref(state))),
 
-            ffi::LUA_TUSERDATA => {
+            lua_tuserdata!() => {
                 // It should not be possible to interact with userdata types
                 // other than custom UserData types OR a WrappedError.
                 // WrappedPanic should never be able to be caught in lua, so it
@@ -1061,7 +1061,7 @@ impl Lua {
                 }
             }
 
-            ffi::LUA_TTHREAD => Value::Thread(Thread(self.pop_ref(state))),
+            lua_tthread!() => Value::Thread(Thread(self.pop_ref(state))),
 
             _ => unreachable!("internal error: LUA_TNONE in pop_value"),
         }
@@ -1104,14 +1104,14 @@ impl Lua {
             check_stack(state, 2);
 
             ffi::lua_pushvalue(state, -1);
-            ffi::lua_gettable(state, ffi::lua_upvalueindex(1));
-            if ffi::lua_isnil(state, -1) == 0 {
+            lua_gettable!(state, lua_upvalueindex!(1));
+            if lua_isnil!(state, -1) {
                 ffi::lua_insert(state, -3);
-                ffi::lua_pop(state, 2);
+                lua_pop!(state, 2);
                 1
             } else {
-                ffi::lua_pop(state, 1);
-                ffi::lua_pushvalue(state, ffi::lua_upvalueindex(2));
+                lua_pop!(state, 1);
+                ffi::lua_pushvalue(state, lua_upvalueindex!(2));
                 ffi::lua_insert(state, -3);
                 ffi::lua_call(state, 2, 1);
                 1
@@ -1125,9 +1125,9 @@ impl Lua {
                 self.state,
                 &LUA_USERDATA_REGISTRY_KEY as *const u8 as *mut c_void,
             );
-            ffi::lua_gettable(self.state, ffi::LUA_REGISTRYINDEX);
+            lua_gettable!(self.state, ffi::LUA_REGISTRYINDEX);
             let registered_userdata = get_userdata::<HashMap<TypeId, c_int>>(self.state, -1);
-            ffi::lua_pop(self.state, 1);
+            lua_pop!(self.state, 1);
 
             if let Some(table_id) = (*registered_userdata).get(&TypeId::of::<T>()) {
                 return *table_id;
@@ -1140,13 +1140,13 @@ impl Lua {
             };
             T::add_methods(&mut methods);
 
-            ffi::lua_newtable(self.state);
+            lua_newtable!(self.state);
 
             let has_methods = !methods.methods.is_empty();
 
             if has_methods {
                 push_string(self.state, "__index");
-                ffi::lua_newtable(self.state);
+                lua_newtable!(self.state);
 
                 for (k, m) in methods.methods {
                     push_string(self.state, &k);
@@ -1164,12 +1164,12 @@ impl Lua {
                 if k == MetaMethod::Index && has_methods {
                     push_string(self.state, "__index");
                     ffi::lua_pushvalue(self.state, -1);
-                    ffi::lua_gettable(self.state, -3);
+                    lua_gettable!(self.state, -3);
                     self.push_value(
                         self.state,
                         Value::Function(self.create_callback_function(m)),
                     );
-                    ffi::lua_pushcclosure(self.state, meta_index_impl, 2);
+                    lua_pushcclosure!(self.state, meta_index_impl, 2);
                     ffi::lua_rawset(self.state, -3);
                 } else {
                     let name = match k {
@@ -1207,7 +1207,7 @@ impl Lua {
             }
 
             push_string(self.state, "__gc");
-            ffi::lua_pushcfunction(self.state, userdata_destructor::<RefCell<T>>);
+            lua_pushcfunction!(self.state, userdata_destructor::<RefCell<T>>);
             ffi::lua_rawset(self.state, -3);
 
             push_string(self.state, "__metatable");

@@ -57,7 +57,7 @@ impl<'lua> Table<'lua> {
                 lua.push_value(lua.state, key.to_lua(lua)?);
                 lua.push_value(lua.state, value.to_lua(lua)?);
                 psettable(lua.state, -3)?;
-                ffi::lua_pop(lua.state, 1);
+                lua_pop!(lua.state, 1);
                 Ok(())
             })
         }
@@ -100,7 +100,7 @@ impl<'lua> Table<'lua> {
                 lua.push_value(lua.state, key.to_lua(lua)?);
                 pgettable(lua.state, -2)?;
                 let res = lua.pop_value(lua.state);
-                ffi::lua_pop(lua.state, 1);
+                lua_pop!(lua.state, 1);
                 V::from_lua(res, lua)
             })
         }
@@ -115,8 +115,8 @@ impl<'lua> Table<'lua> {
                 lua.push_ref(lua.state, &self.0);
                 lua.push_value(lua.state, key.to_lua(lua)?);
                 pgettable(lua.state, -2)?;
-                let has = ffi::lua_isnil(lua.state, -1) == 0;
-                ffi::lua_pop(lua.state, 2);
+                let has = lua_isnil!(lua.state, -1);
+                lua_pop!(lua.state, 2);
                 Ok(has)
             })
         }
@@ -132,7 +132,7 @@ impl<'lua> Table<'lua> {
                 lua.push_value(lua.state, key.to_lua(lua)?);
                 lua.push_value(lua.state, value.to_lua(lua)?);
                 ffi::lua_rawset(lua.state, -3);
-                ffi::lua_pop(lua.state, 1);
+                lua_pop!(lua.state, 1);
                 Ok(())
             })
         }
@@ -148,7 +148,7 @@ impl<'lua> Table<'lua> {
                 lua.push_value(lua.state, key.to_lua(lua)?);
                 ffi::lua_rawget(lua.state, -2);
                 let res = V::from_lua(lua.pop_value(lua.state), lua)?;
-                ffi::lua_pop(lua.state, 1);
+                lua_pop!(lua.state, 1);
                 Ok(res)
             })
         }
@@ -166,7 +166,7 @@ impl<'lua> Table<'lua> {
                 check_stack(lua.state, 3);
                 lua.push_ref(lua.state, &self.0);
                 let len = plen(lua.state, -1)?;
-                ffi::lua_pop(lua.state, 1);
+                lua_pop!(lua.state, 1);
                 Ok(len)
             })
         }
@@ -180,7 +180,7 @@ impl<'lua> Table<'lua> {
                 check_stack(lua.state, 1);
                 lua.push_ref(lua.state, &self.0);
                 let len = ffi::lua_rawlen(lua.state, -1);
-                ffi::lua_pop(lua.state, 1);
+                lua_pop!(lua.state, 1);
                 len as Integer
             })
         }
@@ -196,11 +196,11 @@ impl<'lua> Table<'lua> {
                 check_stack(lua.state, 1);
                 lua.push_ref(lua.state, &self.0);
                 if ffi::lua_getmetatable(lua.state, -1) == 0 {
-                    ffi::lua_pop(lua.state, 1);
+                    lua_pop!(lua.state, 1);
                     None
                 } else {
                     let table = Table(lua.pop_ref(lua.state));
-                    ffi::lua_pop(lua.state, 1);
+                    lua_pop!(lua.state, 1);
                     Some(table)
                 }
             })
@@ -223,7 +223,7 @@ impl<'lua> Table<'lua> {
                     ffi::lua_pushnil(lua.state);
                 }
                 ffi::lua_setmetatable(lua.state, -2);
-                ffi::lua_pop(lua.state, 1);
+                lua_pop!(lua.state, 1);
             })
         }
     }
@@ -356,7 +356,7 @@ where
 
                     match pnext(lua.state, -2) {
                         Ok(0) => {
-                            ffi::lua_pop(lua.state, 1);
+                            lua_pop!(lua.state, 1);
                             None
                         }
                         Ok(_) => {
@@ -364,7 +364,7 @@ where
                             let key = lua.pop_value(lua.state);
                             let value = lua.pop_value(lua.state);
                             self.next_key = Some(lua.pop_ref(lua.state));
-                            ffi::lua_pop(lua.state, 1);
+                            lua_pop!(lua.state, 1);
 
                             Some((|| {
                                 let key = K::from_lua(key, lua)?;
@@ -409,13 +409,13 @@ where
 
                     lua.push_ref(lua.state, &self.table);
                     match pgeti(lua.state, -1, index) {
-                        Ok(ffi::LUA_TNIL) => {
-                            ffi::lua_pop(lua.state, 2);
+                        Ok(lua_tnil!()) => {
+                            lua_pop!(lua.state, 2);
                             None
                         }
                         Ok(_) => {
                             let value = lua.pop_value(lua.state);
-                            ffi::lua_pop(lua.state, 1);
+                            lua_pop!(lua.state, 1);
                             self.index = Some(index + 1);
                             Some(V::from_lua(value, lua))
                         }

@@ -74,12 +74,12 @@ impl<'lua> String<'lua> {
             stack_guard(lua.state, 0, || {
                 check_stack(lua.state, 1);
                 lua.push_ref(lua.state, &self.0);
-                assert_eq!(ffi::lua_type(lua.state, -1), ffi::LUA_TSTRING);
+                assert_eq!(ffi::lua_type(lua.state, -1), lua_tstring!());
 
                 let mut size = 0;
                 let data = ffi::lua_tolstring(lua.state, -1, &mut size);
 
-                ffi::lua_pop(lua.state, 1);
+                lua_pop!(lua.state, 1);
                 slice::from_raw_parts(data as *const u8, size + 1)
             })
         }
