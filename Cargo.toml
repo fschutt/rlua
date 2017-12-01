@@ -13,19 +13,21 @@ license = "MIT"
 travis-ci = { repository = "chucklefish/rlua", branch = "master" }
 
 [features]
-default = ["builtin-lua"]
+default = ["luajit"]
 # Builds the correct version of Lua 5.3 inside the crate. If you want to link a
 # specialized version of lua into your binary, you can disable this feature to
 # do that, but care must be taken.  `rlua` expects the linked lua to define
 # LUA_INTEGER as long long, and LUA_NUMBER as double, and may make other
 # assumptions about how lua is built.
 builtin-lua = ["gcc"]
+luajit = ["lua-jit-sys"]
 
 [dependencies]
 libc = { version = "0.2" }
 
 [build-dependencies]
 gcc = { version = "0.3.52", optional = true }
+lua-jit-sys = { version = "2.0.50", optional = true }
 
 [dev-dependencies]
 rustyline = "1.0.0"
