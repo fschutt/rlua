@@ -150,7 +150,7 @@ where
 // Protected version of lua_gettable, uses 3 stack spaces, does not call checkstack.
 pub unsafe fn pgettable(state: *mut ffi::lua_State, index: c_int) -> Result<c_int> {
     unsafe extern "C" fn gettable(state: *mut ffi::lua_State) -> c_int {
-        lua_gettable!(state, -2);
+        ffi::lua_gettable(state, -2);
         1
     }
 
@@ -448,7 +448,7 @@ pub unsafe extern "C" fn safe_pcall(state: *mut ffi::lua_State) -> c_int {
     let top = ffi::lua_gettop(state);
     if top == 0 {
         push_string(state, "not enough arguments to pcall");
-        ffi::lua_error(state);
+        ffi::lua_error(state)
     } else if ffi::lua_pcall(state, top - 1, ffi::LUA_MULTRET, 0) != lua_ok!() {
         if is_wrapped_panic(state, -1) {
             ffi::lua_error(state);
@@ -706,7 +706,7 @@ pub unsafe fn get_error_metatable(state: *mut ffi::lua_State) -> c_int {
         state,
         &ERROR_METATABLE_REGISTRY_KEY as *const u8 as *mut c_void,
     );
-    lua_gettable!(state, ffi::LUA_REGISTRYINDEX)
+    ffi::lua_gettable(state, ffi::LUA_REGISTRYINDEX)
 }
 
 pub unsafe fn get_panic_metatable(state: *mut ffi::lua_State) -> c_int {
@@ -714,7 +714,7 @@ pub unsafe fn get_panic_metatable(state: *mut ffi::lua_State) -> c_int {
         state,
         &PANIC_METATABLE_REGISTRY_KEY as *const u8 as *mut c_void,
     );
-    lua_gettable!(state, ffi::LUA_REGISTRYINDEX)
+    ffi::lua_gettable(state, ffi::LUA_REGISTRYINDEX)
 }
 
 static ERROR_METATABLE_REGISTRY_KEY: u8 = 0;

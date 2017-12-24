@@ -21,45 +21,7 @@ macro_rules! lua_copy {
 
 macro_rules! lua_lock {($lua_State:expr) => (::std::ptr::null())}
 macro_rules! lua_unlock {($lua_State:expr) => (::std::ptr::null())}
-macro_rules! clCvalue {($o:expr) => (ffi::check_exp(ttisCclosure($o), gco2ccl(val_($o).gc)) }
-
-macro_rules! index2addr {
-    ($lua_State:expr, $idx:expr) => ({
-        CallInfo *ci = L->ci;
-        if (idx > 0) {
-            TValue *o = ci->func + idx;
-            api_check(L, idx <= ci->top - (ci->func + 1), "unacceptable index");
-            if (o >= L->top) return NONVALIDVALUE;
-            else return o;
-            }
-            else if (!ispseudo(idx)) {  /* negative index */
-            api_check(L, idx != 0 && -idx <= L->top - (ci->func + 1), "invalid index");
-            return L->top + idx;
-            }
-            else if (idx == LUA_REGISTRYINDEX)
-            return &G(L)->l_registry;
-            else {  /* upvalues */
-            idx = LUA_REGISTRYINDEX - idx;
-            api_check(L, idx <= MAXUPVAL + 1, "upvalue index too large");
-            if (ttislcf(ci->func))  /* light C function? */
-              return NONVALIDVALUE;  /* it has no upvalues */
-            else {
-              CClosure *func = clCvalue!(ci->func);
-              return (idx <= func->nupvalues) ? &func->upvalue[idx-1] : NONVALIDVALUE;
-            }
-        }
-    })
-}
-macro_rules! lua_gettable {
-    ($lua_State:expr, $idx:expr) => ({
-        lua_lock!($lua_State);
-        let t = ffi::index2addr($lua_State, $idx);
-        let top_1 = ffi::lua_gettop($lua_State) - 1;
-        luaV_gettable($lua_State, t, top_1, top_1);
-        lua_unlock!($lua_State);
-        return ffi::ttnov(top_1);
-    })
-}
+macro_rules! clCvalue {($o:expr) => (ffi::check_exp(ttisCclosure($o), gco2ccl(val_($o).gc))) }
 
 macro_rules! lua_tostring {
     ($lua_State:expr, $i:expr) => (ffi::lua_tolstring($lua_State, $i, ::std::ptr::null_mut()))
@@ -88,21 +50,6 @@ macro_rules! lua_absindex {
 macro_rules! lua_pushcfunction {
     ($lua_State:expr, $function:expr) => ({
         lua_pushcclosure!($lua_State, $function, 0)
-    })
-}
-
-macro_rules! lua_tointegerx {
-    () => ({
-
-/*
-    lua_Integer res;
-    const TValue *o = index2addr(L, idx);
-    int isnum = tointeger(o, &res);
-    if (!isnum)
-      res = 0;  /* call to 'tointeger' may change 'n' even if it fails */
-    if (pisnum) *pisnum = isnum;
-    return res;
-*/
     })
 }
 
@@ -155,28 +102,95 @@ macro_rules! lua_isnone{($L:expr, $n:expr)             => {ffi::lua_type($L, $n)
 macro_rules! lua_isnoneornil{($L:expr, $n:expr)        => {ffi::lua_type($L, $n) <= 0}}
 
 macro_rules! lua_upvalueid {
-    () => ()
+    () => (
+/*
+  StkId fi = index2addr(L, fidx);
+  switch (ttype(fi)) {
+    case LUA_TLCL: {  /* lua closure */
+      return *getupvalref(L, fidx, n, NULL);
+    }
+    case LUA_TCCL: {  /* C closure */
+      CClosure *f = clCvalue(fi);
+      api_check(L, 1 <= n && n <= f->nupvalues, "invalid upvalue index");
+      return &f->upvalue[n - 1];
+    }
+    default: {
+      api_check(L, 0, "closure expected");
+      return NULL;
+    }
+  }
+*/
+    )
 }
 
 macro_rules! luaL_requiref {
     ($lua_State:expr, $modname:expr, $openf:expr, $glb:expr) => ({
-        /*(lua_State *L, const char *modname,
-                                       lua_CFunction openf, int glb) */
+/*
+
+        (lua_State *L, const char *modname, lua_CFunction openf, int glb)
+
           luaL_getsubtable(L, LUA_REGISTRYINDEX, LUA_LOADED_TABLE);
-          lua_getfield(L, -1, modname);  /* LOADED[modname] */
-          if (!lua_toboolean(L, -1)) {  /* package not already loaded? */
-            lua_pop(L, 1);  /* remove field */
+          lua_getfield(L, -1, modname);  // LOADED[modname]
+          if (!lua_toboolean(L, -1)) {  // package not already loaded?
+            lua_pop(L, 1);  // remove field
             lua_pushcfunction(L, openf);
-            lua_pushstring(L, modname);  /* argument to open function */
-            lua_call(L, 1, 1);  /* call 'openf' to open module */
-            lua_pushvalue(L, -1);  /* make copy of module (call result) */
-            lua_setfield(L, -3, modname);  /* LOADED[modname] = module */
+            lua_pushstring(L, modname);  // argument to open function
+            lua_call(L, 1, 1);  // call 'openf' to open module 7
+            lua_pushvalue(L, -1);    // make copy of module (call result) 7
+            lua_setfield(L, -3, modname);  // LOADED[modname] = module 7
           }
-          lua_remove(L, -2);  /* remove LOADED table */
+          lua_remove(L, -2);  // remove LOADED table
           if (glb) {
-            lua_pushvalue(L, -1);  /* copy of module */
-            lua_setglobal(L, modname);  /* _G[modname] = module */
+            lua_pushvalue(L, -1);    // copy of module
+            lua_setglobal(L, modname);    // _G[modname] = module
           }
+*/
+    })
+}
+
+macro_rules! index2addr {
+    ($lua_State:expr, $idx:expr) => ({
+/*
+        CallInfo *ci = L->ci;
+        if (idx > 0) {
+            TValue *o = ci->func + idx;
+            api_check(L, idx <= ci->top - (ci->func + 1), "unacceptable index");
+            if (o >= L->top) return NONVALIDVALUE;
+            else return o;
+            }
+            else if (!ispseudo(idx)) {  /* negative index */
+            api_check(L, idx != 0 && -idx <= L->top - (ci->func + 1), "invalid index");
+            return L->top + idx;
+            }
+            else if (idx == LUA_REGISTRYINDEX)
+            return &G(L)->l_registry;
+            else {  /* upvalues */
+            idx = LUA_REGISTRYINDEX - idx;
+            api_check(L, idx <= MAXUPVAL + 1, "upvalue index too large");
+            if (ttislcf(ci->func))  /* light C function? */
+              return NONVALIDVALUE;  /* it has no upvalues */
+            else {
+              CClosure *func = clCvalue!(ci->func);
+              return (idx <= func->nupvalues) ? &func->upvalue[idx-1] : NONVALIDVALUE;
+            }
+        }
+*/
+    })
+}
+
+
+macro_rules! lua_tointegerx {
+    () => ({
+
+/*
+    lua_Integer res;
+    const TValue *o = index2addr(L, idx);
+    int isnum = tointeger(o, &res);
+    if (!isnum)
+      res = 0;  /* call to 'tointeger' may change 'n' even if it fails */
+    if (pisnum) *pisnum = isnum;
+    return res;
+*/
     })
 }
 

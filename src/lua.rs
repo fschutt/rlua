@@ -954,7 +954,7 @@ impl Lua {
                     self.state,
                     &FUNCTION_METATABLE_REGISTRY_KEY as *const u8 as *mut c_void,
                 );
-                lua_gettable!(self.state, ffi::LUA_REGISTRYINDEX);
+                ffi::lua_gettable(self.state, ffi::LUA_REGISTRYINDEX);
                 ffi::lua_setmetatable(self.state, -2);
 
                 lua_pushcclosure!(self.state, callback_call_impl, 1);
@@ -1104,7 +1104,7 @@ impl Lua {
             check_stack(state, 2);
 
             ffi::lua_pushvalue(state, -1);
-            lua_gettable!(state, lua_upvalueindex!(1));
+            ffi::lua_gettable(state, lua_upvalueindex!(1));
             if lua_isnil!(state, -1) {
                 ffi::lua_insert(state, -3);
                 lua_pop!(state, 2);
@@ -1125,7 +1125,7 @@ impl Lua {
                 self.state,
                 &LUA_USERDATA_REGISTRY_KEY as *const u8 as *mut c_void,
             );
-            lua_gettable!(self.state, ffi::LUA_REGISTRYINDEX);
+            ffi::lua_gettable(self.state, ffi::LUA_REGISTRYINDEX);
             let registered_userdata = get_userdata::<HashMap<TypeId, c_int>>(self.state, -1);
             lua_pop!(self.state, 1);
 
@@ -1164,7 +1164,7 @@ impl Lua {
                 if k == MetaMethod::Index && has_methods {
                     push_string(self.state, "__index");
                     ffi::lua_pushvalue(self.state, -1);
-                    lua_gettable!(self.state, -3);
+                    ffi::lua_gettable(self.state, -3);
                     self.push_value(
                         self.state,
                         Value::Function(self.create_callback_function(m)),
